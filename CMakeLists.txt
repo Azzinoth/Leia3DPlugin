@@ -94,6 +94,17 @@ if(bFocalEngineLibrariesMissing)
     endforeach()
 endif()
 
+# *************** LEIA SR SDK ***************
+# SDK provides only import libraries, DLLs come with LeiaSR Platform, that should be installed to run plugin.
+set(LEIASR_SDKROOT "$ENV{LEIASR_SDKROOT}" CACHE PATH "Path to LeiaSR SDK root")
+if(NOT EXISTS "${LEIASR_SDKROOT}/lib/cmake")
+    message(FATAL_ERROR "LeiaSR SDK is not found, set LEIASR_SDKROOT environment variable or CMake cache variable to LeiaSR SDK root")
+endif()
+
+list(APPEND CMAKE_PREFIX_PATH "${LEIASR_SDKROOT}/lib/cmake")
+find_package(simulatedreality REQUIRED)
+find_package(srOpenGL REQUIRED)
+
 file(GLOB Connection_To_Engine_SRC
 	"SubSystems/FocalEngine/SubSystems/PluginSystem/FEPluginConnector.cpp"
     "SubSystems/FocalEngine/SubSystems/PluginSystem/FEPluginConnector.h"
@@ -123,7 +134,31 @@ target_link_libraries(${PROJECT_NAME}
         optimized ${FOCAL_ENGINE_LIBS_DIRECTORY}/Release/FEBasicApplication.lib
         debug ${FOCAL_ENGINE_LIBS_DIRECTORY}/Debug/FocalEngine.lib
         optimized ${FOCAL_ENGINE_LIBS_DIRECTORY}/Release/FocalEngine.lib
+        simulatedreality
+        srOpenGL::srOpenGL
+        # Helper that loads delay loaded DLLs.
+        delayimp
 )
+
+# LeiaSR DLLs are found through PATH, that LeiaSR Platform installer sets, but plugin manager loads plugin DLL without PATH in DLL search path.
+# So they are delay loaded, they are loaded with standard DLL search on the first call into SDK, Leia3DPlugin::OnLoad checks that it is possible.
+set(LEIA_SR_DLLS
+    simulatedreality.dll
+    SimulatedRealityCore.dll
+    SimulatedRealityDisplays.dll
+    SimulatedRealityOpenGL.dll
+    SimulatedRealityCameras.dll
+    SimulatedRealityFaceTrackers.dll
+    SimulatedRealityHandTrackers.dll
+    SimulatedRealityUserModelers.dll
+    DimencoWeaving.dll
+)
+foreach(DLL ${LEIA_SR_DLLS})
+    target_link_options(${PROJECT_NAME} PRIVATE "/DELAYLOAD:${DLL}")
+endforeach()
+
+# SDK links all of its libraries, LNK4199 is reported for every DLL from the list that plugin does not use.
+target_link_options(${PROJECT_NAME} PRIVATE "/ignore:4199")
 
 # FocalEngine is headers-only, we need to add its include directories
 target_include_directories(${PROJECT_NAME} PRIVATE ${FOCAL_ENGINE_INCLUDES})

@@ -18,4 +18,8 @@ public:
 	// Order of virtual functions is part of the interface, new functions should be added only at the end.
 	virtual ~Leia3DPluginInterface() = default;
 	virtual int GetInterfaceVersion() const { return InterfaceVersion; }
+
+	// Switches lens of 3D monitor, returns false if plugin could not connect to the LeiaSR service.
+	virtual bool Set3DModeEnabled(bool bNewValue) = 0;
+	virtual bool Is3DModeEnabled() const = 0;
 };
