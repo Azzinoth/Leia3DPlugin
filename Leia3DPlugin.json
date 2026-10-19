@@ -1,0 +1,17 @@
+{
+	"ID": "510257d6-2cd9-449a-9be7-cd2d6f5b4179",
+	"Name": "Leia3DPlugin",
+	"Version": "1.0.0",
+	"SupportedOS": [ "Windows" ],
+	"Dependencies": [],
+	"Modules": [
+		{
+			"ID": "f09b0430-5029-456b-b3b1-90896cd300bc",
+			"Type": "Engine",
+			"Name": "Leia3DPlugin",
+			"EntryPointFileName": "Leia3DPlugin.dll",
+			"SupportedOS": [ "Windows" ],
+			"Dependencies": []
+		}
+	]
+}
