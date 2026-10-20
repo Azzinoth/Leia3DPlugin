@@ -154,6 +154,7 @@ set(LEIA_SR_DLLS
     SimulatedRealityHandTrackers.dll
     SimulatedRealityUserModelers.dll
     DimencoWeaving.dll
+    opencv_world343.dll
 )
 foreach(DLL ${LEIA_SR_DLLS})
     target_link_options(${PROJECT_NAME} PRIVATE "/DELAYLOAD:${DLL}")
