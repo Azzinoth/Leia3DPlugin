@@ -5,6 +5,7 @@ namespace FocalEngine
 	class FEScene;
 	class FEViewport;
 	class FETexture;
+	class FEEntity;
 }
 
 // Public API of Leia3DPlugin, applications include only this header.
@@ -32,6 +33,7 @@ public:
 
 	// Creates monitor and eye camera entities in Scene, 3D image will be produced for Viewport area.
 	// Previous binding is removed first, together with its entities.
+	// If Viewport is ENGINE.GetDefaultViewport(), main window is the 3D area and plugin draws final result into it, before UI is rendered.
 	virtual bool BindToScene(FocalEngine::FEScene* Scene, FocalEngine::FEViewport* Viewport) = 0;
 	// Deletes monitor and eye camera entities from bound scene.
 	virtual void Unbind() = 0;
@@ -51,4 +53,9 @@ public:
 	// Outlines of the physical display and of the 3D area on it, drawn with debug lines like eye frustums.
 	virtual bool IsMonitorVisible() const = 0;
 	virtual void SetMonitorVisible(bool bNewValue) = 0;
+
+	// Center of the 3D area, its local XY plane is the screen and the viewer is on its +Z side.
+	// Eye cameras are its children, so moving or rotating it moves the whole 3D view.
+	// It is recreated by BindToScene, so it should not be stored. Returns nullptr if plugin is not bound.
+	virtual FocalEngine::FEEntity* GetMonitorEntity() const = 0;
 };

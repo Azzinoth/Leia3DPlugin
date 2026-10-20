@@ -52,6 +52,8 @@ class Leia3DPlugin : public FEPluginCore, public Leia3DPluginInterface
 	void UpdateFinalResult(int Width, int Height);
 	// Weaves stereo views into the final result, at the viewport rectangle that eye cameras were rendered for.
 	void RenderFinalResult();
+	// When plugin is bound to the default viewport, main window is the 3D area, so final result is copied into it.
+	void CopyFinalResultToMainWindow();
 
 	bool InitializeContext(bool bInitialLensState);
 	void CreateWeaver();
@@ -81,4 +83,6 @@ public:
 
 	bool IsMonitorVisible() const override;
 	void SetMonitorVisible(bool bNewValue) override;
+
+	FEEntity* GetMonitorEntity() const override;
 };

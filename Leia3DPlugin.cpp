@@ -365,6 +365,15 @@ void Leia3DPlugin::SetMonitorVisible(const bool bNewValue)
 	bMonitorVisible = bNewValue;
 }
 
+FEEntity* Leia3DPlugin::GetMonitorEntity() const
+{
+	FEScene* Scene = GetBoundScene();
+	if (Scene == nullptr)
+		return nullptr;
+
+	return Scene->GetEntity(MonitorEntityID);
+}
+
 void Leia3DPlugin::Render()
 {
 	if (Weaver == nullptr)
@@ -434,6 +443,35 @@ void Leia3DPlugin::Render()
 	StateBackup.Restore();
 
 	RenderFinalResult();
+
+	FEViewport* DefaultViewport = ENGINE.GetDefaultViewport();
+	if (DefaultViewport != nullptr && DefaultViewport->GetID() == BoundViewportID)
+		CopyFinalResultToMainWindow();
+}
+
+void Leia3DPlugin::CopyFinalResultToMainWindow()
+{
+	if (FinalResultFramebuffer == nullptr)
+		return;
+
+	OpenGLStateBackup StateBackup;
+	StateBackup.Save();
+
+	// Final result has the size of the main window framebuffer, so it is copied texel per pixel and every woven pixel lands on the pixel it was woven for.
+	// Copy is not affected by depth test, so screen quads that renderer draws into main window for eye cameras with default viewport do not matter.
+	// Blit is affected by scissor test.
+	FE_GL_ERROR(glDisable(GL_SCISSOR_TEST));
+
+	// Bind sets both draw and read framebuffers, so draw framebuffer is replaced right after.
+	FinalResultFramebuffer->Bind();
+	FE_GL_ERROR(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0));
+
+	const int Width = FinalResultFramebuffer->GetWidth();
+	const int Height = FinalResultFramebuffer->GetHeight();
+	FE_GL_ERROR(glBlitFramebuffer(0, 0, Width, Height, 0, 0, Width, Height, GL_COLOR_BUFFER_BIT, GL_NEAREST));
+
+	FinalResultFramebuffer->UnBind();
+	StateBackup.Restore();
 }
 
 void Leia3DPlugin::RenderFinalResult()
