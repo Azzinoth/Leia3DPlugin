@@ -138,6 +138,7 @@ target_link_libraries(${PROJECT_NAME}
         srOpenGL::srOpenGL
         # Helper that loads delay loaded DLLs.
         delayimp
+        opengl32
 )
 
 # LeiaSR DLLs are found through PATH, that LeiaSR Platform installer sets, but plugin manager loads plugin DLL without PATH in DLL search path.
