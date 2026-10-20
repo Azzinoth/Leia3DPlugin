@@ -4,6 +4,7 @@ namespace FocalEngine
 {
 	class FEScene;
 	class FEViewport;
+	class FETexture;
 }
 
 // Public API of Leia3DPlugin, applications include only this header.
@@ -36,4 +37,6 @@ public:
 	virtual void Unbind() = 0;
 	// Returns nullptr if plugin is not bound to any scene.
 	virtual FocalEngine::FEScene* GetBoundScene() const = 0;
+
+	virtual FocalEngine::FETexture* GetFinalResult() const = 0;
 };

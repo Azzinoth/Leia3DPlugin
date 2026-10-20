@@ -139,6 +139,7 @@ target_link_libraries(${PROJECT_NAME}
         # Helper that loads delay loaded DLLs.
         delayimp
         opengl32
+        ${FOCAL_ENGINE_DIRECTORY}/SubSystems/FEBasicApplication/ThirdParty/glew2/lib/x64/glew32.lib
 )
 
 # LeiaSR DLLs are found through PATH, that LeiaSR Platform installer sets, but plugin manager loads plugin DLL without PATH in DLL search path.
