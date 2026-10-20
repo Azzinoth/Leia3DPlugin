@@ -72,4 +72,13 @@ public:
 	FEScene* GetBoundScene() const override;
 
 	FETexture* GetFinalResult() const override;
+
+	float GetWorldUnitsPerMillimeter() const override;
+	void SetWorldUnitsPerMillimeter(float NewValue) override;
+
+	bool AreEyeFrustumsVisible() const override;
+	void SetEyeFrustumsVisible(bool bNewValue) override;
+
+	bool IsMonitorVisible() const override;
+	void SetMonitorVisible(bool bNewValue) override;
 };

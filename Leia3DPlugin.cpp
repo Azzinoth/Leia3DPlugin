@@ -329,6 +329,42 @@ FETexture* Leia3DPlugin::GetFinalResult() const
 	return FinalResultFramebuffer->GetColorAttachment();
 }
 
+float Leia3DPlugin::GetWorldUnitsPerMillimeter() const
+{
+	return WorldUnitsPerMillimeter;
+}
+
+void Leia3DPlugin::SetWorldUnitsPerMillimeter(const float NewValue)
+{
+	if (NewValue <= 0.0f)
+	{
+		LOG.Add("Leia3DPlugin::SetWorldUnitsPerMillimeter: Value should be positive", "LEIA_3D_PLUGIN", FE_LOG_WARNING);
+		return;
+	}
+
+	WorldUnitsPerMillimeter = NewValue;
+}
+
+bool Leia3DPlugin::AreEyeFrustumsVisible() const
+{
+	return bEyeFrustumsVisible;
+}
+
+void Leia3DPlugin::SetEyeFrustumsVisible(const bool bNewValue)
+{
+	bEyeFrustumsVisible = bNewValue;
+}
+
+bool Leia3DPlugin::IsMonitorVisible() const
+{
+	return bMonitorVisible;
+}
+
+void Leia3DPlugin::SetMonitorVisible(const bool bNewValue)
+{
+	bMonitorVisible = bNewValue;
+}
+
 void Leia3DPlugin::Render()
 {
 	if (Weaver == nullptr)

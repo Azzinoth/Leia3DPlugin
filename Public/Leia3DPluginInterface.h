@@ -39,4 +39,16 @@ public:
 	virtual FocalEngine::FEScene* GetBoundScene() const = 0;
 
 	virtual FocalEngine::FETexture* GetFinalResult() const = 0;
+
+	// Scale between physical millimeters of the monitor and scene world units, value should be positive.
+	virtual float GetWorldUnitsPerMillimeter() const = 0;
+	virtual void SetWorldUnitsPerMillimeter(float NewValue) = 0;
+
+	// Eye frustums are drawn with debug lines, which are rendered for every camera, so they are also visible in 3D view itself.
+	virtual bool AreEyeFrustumsVisible() const = 0;
+	virtual void SetEyeFrustumsVisible(bool bNewValue) = 0;
+
+	// Outlines of the physical display and of the 3D area on it, drawn with debug lines like eye frustums.
+	virtual bool IsMonitorVisible() const = 0;
+	virtual void SetMonitorVisible(bool bNewValue) = 0;
 };
