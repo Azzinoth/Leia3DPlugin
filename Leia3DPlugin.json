@@ -12,6 +12,14 @@
 			"EntryPointFileName": "Leia3DPlugin.dll",
 			"SupportedOS": [ "Windows" ],
 			"Dependencies": []
+		},
+		{
+			"ID": "f605b224-5aa3-44ea-98bd-1807e800159a",
+			"Type": "Editor",
+			"Name": "Leia3DPluginEditor",
+			"EntryPointFileName": "Leia3DPluginEditor.dll",
+			"SupportedOS": [ "Windows" ],
+			"Dependencies": [ "f09b0430-5029-456b-b3b1-90896cd300bc" ]
 		}
 	]
 }

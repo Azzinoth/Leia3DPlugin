@@ -121,19 +121,72 @@ file(GLOB Public_SRC "Public/*.h")
 link_directories(${GLEW_LIB_DIR})
 link_directories(${GLFW_LIB_DIR})
 
-add_library(${PROJECT_NAME}
-	SHARED
-		${Main_SRC}
-		${Public_SRC}
-		${Connection_To_Engine_SRC}
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/SubSystems
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/ThirdParty
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/ThirdParty/stduuid
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/ThirdParty/glew2/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/ThirdParty
+    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/ThirdParty/entt
 )
 
+# Creates one plugin module DLL, every module of the plugin is set up the same way.
+# Usage: fe_add_plugin_module(TargetName SOURCES File1.h File1.cpp ...)
+function(fe_add_plugin_module TARGET_NAME)
+    cmake_parse_arguments(MODULE "" "" "SOURCES" ${ARGN})
+
+    add_library(${TARGET_NAME}
+        SHARED
+            ${MODULE_SOURCES}
+            ${Public_SRC}
+            ${Connection_To_Engine_SRC}
+    )
+
+    target_link_libraries(${TARGET_NAME}
+        PRIVATE
+            debug ${FOCAL_ENGINE_LIBS_DIRECTORY}/Debug/FEBasicApplication.lib
+            optimized ${FOCAL_ENGINE_LIBS_DIRECTORY}/Release/FEBasicApplication.lib
+            debug ${FOCAL_ENGINE_LIBS_DIRECTORY}/Debug/FocalEngine.lib
+            optimized ${FOCAL_ENGINE_LIBS_DIRECTORY}/Release/FocalEngine.lib
+    )
+
+    # FocalEngine is headers-only, we need to add its include directories
+    target_include_directories(${TARGET_NAME} PRIVATE ${FOCAL_ENGINE_INCLUDES})
+    target_compile_definitions(${TARGET_NAME} PRIVATE FOCAL_ENGINE_HEADERS_ONLY)
+
+    target_compile_definitions(${TARGET_NAME} PRIVATE $<$<CONFIG:Debug>:FE_DEBUG_ENABLED>)
+
+    source_group("Source Files/" FILES ${MODULE_SOURCES})
+    source_group("Source Files/Public/" FILES ${Public_SRC})
+    source_group("Source Files/Engine/" FILES ${Connection_To_Engine_SRC})
+
+    # Gather files that plugin manager needs in one folder, DLL name gets configuration postfix.
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/Build"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${TARGET_NAME}>" "${CMAKE_CURRENT_SOURCE_DIR}/Build/${TARGET_NAME}_$<CONFIG>.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.json" "${CMAKE_CURRENT_SOURCE_DIR}/Build/"
+    )
+
+    # Copy public headers, applications include them to call plugin API.
+    if(Public_SRC)
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/Public" "${CMAKE_CURRENT_SOURCE_DIR}/Build/Public"
+        )
+    endif()
+
+    # Build other configuration too, so both DLLs in Build folder are always up to date.
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -D BUILT_CONFIGURATION=$<CONFIG> -D "BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -D TARGET_NAME=${TARGET_NAME} -P "${CMAKE_CURRENT_SOURCE_DIR}/BuildManagement/BuildOtherConfiguration.cmake"
+    )
+endfunction()
+
+fe_add_plugin_module(${PROJECT_NAME} SOURCES ${Main_SRC})
+
+# Only engine module uses LeiaSR SDK, editor module uses engine module through public interface.
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
-        debug ${FOCAL_ENGINE_LIBS_DIRECTORY}/Debug/FEBasicApplication.lib
-        optimized ${FOCAL_ENGINE_LIBS_DIRECTORY}/Release/FEBasicApplication.lib
-        debug ${FOCAL_ENGINE_LIBS_DIRECTORY}/Debug/FocalEngine.lib
-        optimized ${FOCAL_ENGINE_LIBS_DIRECTORY}/Release/FocalEngine.lib
         simulatedreality
         srOpenGL::srOpenGL
         # Helper that loads delay loaded DLLs.
@@ -163,43 +216,8 @@ endforeach()
 # SDK links all of its libraries, LNK4199 is reported for every DLL from the list that plugin does not use.
 target_link_options(${PROJECT_NAME} PRIVATE "/ignore:4199")
 
-# FocalEngine is headers-only, we need to add its include directories
-target_include_directories(${PROJECT_NAME} PRIVATE ${FOCAL_ENGINE_INCLUDES})
-target_compile_definitions(${PROJECT_NAME} PRIVATE FOCAL_ENGINE_HEADERS_ONLY)
-
-source_group("Source Files/" FILES ${Main_SRC})
-source_group("Source Files/Public/" FILES ${Public_SRC})
-source_group("Source Files/Engine/" FILES ${Connection_To_Engine_SRC})
-
 # set the startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/SubSystems
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/ThirdParty
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/ThirdParty/stduuid
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/SubSystems/FEBasicApplication/ThirdParty/glew2/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/ThirdParty
-    ${CMAKE_CURRENT_SOURCE_DIR}/SubSystems/FocalEngine/ThirdParty/entt
-)
-
-# Gather files that plugin manager needs in one folder, DLL name gets configuration postfix.
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/Build"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${CMAKE_CURRENT_SOURCE_DIR}/Build/${PROJECT_NAME}_$<CONFIG>.dll"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.json" "${CMAKE_CURRENT_SOURCE_DIR}/Build/"
-)
-
-# Copy public headers, applications include them to call plugin API.
-if(Public_SRC)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/Public" "${CMAKE_CURRENT_SOURCE_DIR}/Build/Public"
-    )
-endif()
-
-# Build other configuration too, so both DLLs in Build folder are always up to date.
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -D BUILT_CONFIGURATION=$<CONFIG> -D "BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -D TARGET_NAME=${PROJECT_NAME} -P "${CMAKE_CURRENT_SOURCE_DIR}/BuildManagement/BuildOtherConfiguration.cmake"
-)
+# Applications that generate plugin project could add more modules here, for example editor adds editor module.
+include(${CMAKE_CURRENT_SOURCE_DIR}/AdditionalModules.cmake OPTIONAL)
