@@ -2,6 +2,7 @@
 	"ID": "510257d6-2cd9-449a-9be7-cd2d6f5b4179",
 	"Name": "Leia3DPlugin",
 	"Version": "1.0.0",
+	"Description": "Stereo 3D rendering for Leia SR monitors.",
 	"SupportedOS": [ "Windows" ],
 	"Dependencies": [],
 	"Modules": [
