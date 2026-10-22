@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
 set(BUILD_TYPE "Debug and Release" CACHE STRING "Choose Build type")
 set(CMAKE_BUILD_TYPE Debug)
@@ -18,18 +18,16 @@ if(MSVC)
     # Disable C4251 warning
     add_compile_options(/wd4251)
 
+    # Runtime is set as default for targets, so static libraries of modules could use static runtime.
     if(USE_STATIC_RUNTIME)
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     else()
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     endif()
 
     # Always add /MP for multi-processor compilation
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-	# Define that engine should be used as shared library
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D FEBASICAPPLICATION_SHARED /D FOCAL_ENGINE_SHARED /D FE_GRAPHICS_API_OPENGL")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D FE_GRAPHICS_API_OPENGL")
 endif()
 
 # Turn on the ability to create folders to organize projects (.vcproj)
@@ -133,9 +131,10 @@ include_directories(
 )
 
 # Creates one plugin module DLL, every module of the plugin is set up the same way.
-# Usage: fe_add_plugin_module(TargetName SOURCES File1.h File1.cpp ...)
+# With STATIC_LIBRARY module also gets static library, that games link instead of DLL.
+# Usage: fe_add_plugin_module(TargetName [STATIC_LIBRARY] SOURCES File1.h File1.cpp ...)
 function(fe_add_plugin_module TARGET_NAME)
-    cmake_parse_arguments(MODULE "" "" "SOURCES" ${ARGN})
+    cmake_parse_arguments(MODULE "STATIC_LIBRARY" "" "SOURCES" ${ARGN})
 
     add_library(${TARGET_NAME}
         SHARED
@@ -154,7 +153,7 @@ function(fe_add_plugin_module TARGET_NAME)
 
     # FocalEngine is headers-only, we need to add its include directories
     target_include_directories(${TARGET_NAME} PRIVATE ${FOCAL_ENGINE_INCLUDES})
-    target_compile_definitions(${TARGET_NAME} PRIVATE FOCAL_ENGINE_HEADERS_ONLY)
+    target_compile_definitions(${TARGET_NAME} PRIVATE FOCAL_ENGINE_HEADERS_ONLY FEBASICAPPLICATION_SHARED FOCAL_ENGINE_SHARED)
 
     target_compile_definitions(${TARGET_NAME} PRIVATE $<$<CONFIG:Debug>:FE_DEBUG_ENABLED>)
 
@@ -180,9 +179,77 @@ function(fe_add_plugin_module TARGET_NAME)
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -D BUILT_CONFIGURATION=$<CONFIG> -D "BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -D TARGET_NAME=${TARGET_NAME} -P "${CMAKE_CURRENT_SOURCE_DIR}/BuildManagement/BuildOtherConfiguration.cmake"
     )
+
+    if(MODULE_STATIC_LIBRARY)
+        add_library(${TARGET_NAME}_Static
+            STATIC
+                ${MODULE_SOURCES}
+                ${Public_SRC}
+                ${Connection_To_Engine_SRC}
+        )
+
+        # Games link engine statically, with static runtime and static GLEW.
+        set_target_properties(${TARGET_NAME}_Static PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        target_include_directories(${TARGET_NAME}_Static PRIVATE ${FOCAL_ENGINE_INCLUDES})
+        target_compile_definitions(${TARGET_NAME}_Static PRIVATE FOCAL_ENGINE_HEADERS_ONLY GLEW_STATIC $<$<CONFIG:Debug>:FE_DEBUG_ENABLED>)
+
+        add_custom_command(TARGET ${TARGET_NAME}_Static POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/Build/Static"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${TARGET_NAME}_Static>" "${CMAKE_CURRENT_SOURCE_DIR}/Build/Static/${TARGET_NAME}_$<CONFIG>.lib"
+        )
+
+        # Static library is built together with DLL, in both configurations.
+        add_dependencies(${TARGET_NAME} ${TARGET_NAME}_Static)
+        set_property(GLOBAL APPEND PROPERTY FE_PLUGIN_STATIC_MODULES ${TARGET_NAME})
+    endif()
 endfunction()
 
-fe_add_plugin_module(${PROJECT_NAME} SOURCES ${Main_SRC})
+# Writes Build/Static/<PluginName>.cmake, games include it to link static libraries of modules together with what they depend on.
+# LIBRARIES are library files, that are copied next to it, or names of system libraries. LINK_OPTIONS are added to the game link.
+# Usage: fe_write_static_link_file([LIBRARIES Library1.lib ...] [LINK_OPTIONS Option1 ...])
+function(fe_write_static_link_file)
+    cmake_parse_arguments(STATIC_LINK "" "" "LIBRARIES;LINK_OPTIONS" ${ARGN})
+
+    get_property(StaticModules GLOBAL PROPERTY FE_PLUGIN_STATIC_MODULES)
+    if(NOT StaticModules)
+        return()
+    endif()
+
+    set(StaticDirectory "${CMAKE_CURRENT_SOURCE_DIR}/Build/Static")
+    file(MAKE_DIRECTORY "${StaticDirectory}")
+
+    set(LinkLibraries "")
+    set(LinkOptions "")
+    foreach(Module ${StaticModules})
+        # Nothing references static registration of REGISTER_PLUGIN, so without /WHOLEARCHIVE linker would drop it.
+        list(APPEND LinkLibraries "\${CMAKE_CURRENT_LIST_DIR}/${Module}_Release.lib")
+        list(APPEND LinkOptions "/WHOLEARCHIVE:\${CMAKE_CURRENT_LIST_DIR}/${Module}_Release.lib")
+    endforeach()
+
+    foreach(Library ${STATIC_LINK_LIBRARIES})
+        if(EXISTS "${Library}")
+            file(COPY "${Library}" DESTINATION "${StaticDirectory}")
+            get_filename_component(LibraryFileName "${Library}" NAME)
+            list(APPEND LinkLibraries "\${CMAKE_CURRENT_LIST_DIR}/${LibraryFileName}")
+        else()
+            list(APPEND LinkLibraries "${Library}")
+        endif()
+    endforeach()
+
+    list(APPEND LinkOptions ${STATIC_LINK_LINK_OPTIONS})
+
+    file(WRITE "${StaticDirectory}/${PROJECT_NAME}.cmake"
+        "# Generated by CMakeLists.txt of ${PROJECT_NAME}, games include it to link plugin statically.\n"
+        "if(NOT TARGET ${PROJECT_NAME}::Static)\n"
+        "    add_library(${PROJECT_NAME}::Static INTERFACE IMPORTED)\n"
+        "    set_target_properties(${PROJECT_NAME}::Static PROPERTIES\n"
+        "        INTERFACE_LINK_LIBRARIES \"${LinkLibraries}\"\n"
+        "        INTERFACE_LINK_OPTIONS \"${LinkOptions}\")\n"
+        "endif()"
+    )
+endfunction()
+
+fe_add_plugin_module(${PROJECT_NAME} STATIC_LIBRARY SOURCES ${Main_SRC})
 
 # Only engine module uses LeiaSR SDK, editor module uses engine module through public interface.
 target_link_libraries(${PROJECT_NAME}
@@ -194,6 +261,9 @@ target_link_libraries(${PROJECT_NAME}
         opengl32
         ${FOCAL_ENGINE_DIRECTORY}/SubSystems/FEBasicApplication/ThirdParty/glew2/lib/x64/glew32.lib
 )
+
+# Static library needs only SDK headers, games link SDK libraries through static link file.
+target_link_libraries(${PROJECT_NAME}_Static PRIVATE simulatedreality srOpenGL::srOpenGL)
 
 # LeiaSR DLLs are found through PATH, that LeiaSR Platform installer sets, but plugin manager loads plugin DLL without PATH in DLL search path.
 # So they are delay loaded, they are loaded with standard DLL search on the first call into SDK, Leia3DPlugin::OnLoad checks that it is possible.
@@ -209,15 +279,35 @@ set(LEIA_SR_DLLS
     DimencoWeaving.dll
     opencv_world343.dll
 )
+# SDK links all of its libraries, LNK4199 is reported for every DLL from the list that plugin does not use.
+set(LEIA_SR_LINK_OPTIONS "/ignore:4199")
 foreach(DLL ${LEIA_SR_DLLS})
-    target_link_options(${PROJECT_NAME} PRIVATE "/DELAYLOAD:${DLL}")
+    list(APPEND LEIA_SR_LINK_OPTIONS "/DELAYLOAD:${DLL}")
 endforeach()
 
-# SDK links all of its libraries, LNK4199 is reported for every DLL from the list that plugin does not use.
-target_link_options(${PROJECT_NAME} PRIVATE "/ignore:4199")
+target_link_options(${PROJECT_NAME} PRIVATE ${LEIA_SR_LINK_OPTIONS})
 
 # set the startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
 
 # Applications that generate plugin project could add more modules here, for example editor adds editor module.
 include(${CMAKE_CURRENT_SOURCE_DIR}/AdditionalModules.cmake OPTIONAL)
+
+# Games delay load LeiaSR DLLs too, so they start without LeiaSR Platform installed.
+file(GLOB LEIA_SR_IMPORT_LIBRARIES "${LEIASR_SDKROOT}/lib/*.lib")
+
+# SDK targets also link these third party libraries, without them for example OpenCV symbols from SDK headers are unresolved in games.
+set(LEIA_SR_THIRD_PARTY_LIBRARIES
+    "${LEIASR_SDKROOT}/third_party/GLog/lib/x64/glog.lib"
+    "${LEIASR_SDKROOT}/third_party/Leap/lib/LeapC.lib"
+    "${LEIASR_SDKROOT}/third_party/OpenCV/lib/x64/opencv_world343.lib"
+)
+
+# fe_write_static_link_file treats missing file as a system library name, so it would fail only when game is linked.
+foreach(Library ${LEIA_SR_THIRD_PARTY_LIBRARIES})
+    if(NOT EXISTS "${Library}")
+        message(FATAL_ERROR "${Library} is not found, LeiaSR SDK layout could be different in this SDK version")
+    endif()
+endforeach()
+
+fe_write_static_link_file(LIBRARIES ${LEIA_SR_IMPORT_LIBRARIES} ${LEIA_SR_THIRD_PARTY_LIBRARIES} delayimp LINK_OPTIONS ${LEIA_SR_LINK_OPTIONS})
