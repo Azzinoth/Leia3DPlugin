@@ -116,19 +116,20 @@ namespace
 	};
 }
 
-void Leia3DPlugin::OnLoad()
+bool Leia3DPlugin::OnLoad()
 {
 	// LeiaSR DLLs are delay loaded.
 	if (LoadLibraryA("SimulatedRealityCore.dll") == nullptr)
 	{
 		LOG.Add("Leia3DPlugin::OnLoad: LeiaSR Platform is not installed, plugin will stay inactive", "LEIA_3D_PLUGIN", FE_LOG_ERROR);
-		return;
+		return true;
 	}
 
 	bLeiaPlatformAvailable = true;
 
 	// 3D mode stays off until application enables it.
 	InitializeContext(false);
+	return true;
 }
 
 void Leia3DPlugin::OnUnload()

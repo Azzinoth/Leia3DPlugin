@@ -59,7 +59,7 @@ class Leia3DPlugin : public FEPluginCore, public Leia3DPluginInterface
 	void CreateWeaver();
 	void Shutdown();
 public:
-	void OnLoad() override;
+	bool OnLoad() override;
 	void OnUnload() override;
 	void OnUpdate(double DeltaTime) override;
 	void OnBeforeRender() override;
