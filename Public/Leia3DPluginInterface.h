@@ -21,7 +21,7 @@ public:
 	static constexpr const char* PluginID = "510257d6-2cd9-449a-9be7-cd2d6f5b4179";
 
 	// Increase when anything in this file changes.
-	static constexpr int InterfaceVersion = 2;
+	static constexpr int InterfaceVersion = 3;
 
 	// Order of virtual functions is part of the interface, new functions should be added only at the end.
 	virtual ~Leia3DPluginInterface() = default;
@@ -58,4 +58,10 @@ public:
 	// Eye cameras are its children, so moving or rotating it moves the whole 3D view.
 	// It is recreated by BindToScene, so it should not be stored. Returns nullptr if plugin is not bound.
 	virtual FocalEngine::FEEntity* GetMonitorEntity() const = 0;
+
+	// False without LeiaSR Platform, LeiaSR service or connected 3D monitor.
+	virtual bool Is3DMonitorAvailable() const = 0;
+
+	virtual FocalEngine::FEEntity* GetLeftEyeEntity() const = 0;
+	virtual FocalEngine::FEEntity* GetRightEyeEntity() const = 0;
 };

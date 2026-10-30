@@ -317,10 +317,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/AdditionalModules.cmake OPTIONAL)
 # Games delay load LeiaSR DLLs too, so they start without LeiaSR Platform installed.
 file(GLOB LEIA_SR_IMPORT_LIBRARIES "${LEIASR_SDKROOT}/lib/*.lib")
 
-# SDK targets also link these third party libraries, without them for example OpenCV symbols from SDK headers are unresolved in games.
+# SDK targets link more third party libraries, but plugin references only OpenCV symbols from SDK headers, without it they are unresolved in games.
 set(LEIA_SR_THIRD_PARTY_LIBRARIES
-    "${LEIASR_SDKROOT}/third_party/GLog/lib/x64/glog.lib"
-    "${LEIASR_SDKROOT}/third_party/Leap/lib/LeapC.lib"
     "${LEIASR_SDKROOT}/third_party/OpenCV/lib/x64/opencv_world343.lib"
 )
 
@@ -330,5 +328,8 @@ foreach(Library ${LEIA_SR_THIRD_PARTY_LIBRARIES})
         message(FATAL_ERROR "${Library} is not found, LeiaSR SDK layout could be different in this SDK version")
     endif()
 endforeach()
+
+# Build/Static gets import libraries of SDK and OpenCV, their licenses require license text to be shipped with them.
+configure_file("${LEIASR_SDKROOT}/License.txt" "${CMAKE_CURRENT_SOURCE_DIR}/Build/Static/LeiaSR_SDK_License.txt" COPYONLY)
 
 fe_write_static_link_file(LIBRARIES ${LEIA_SR_IMPORT_LIBRARIES} ${LEIA_SR_THIRD_PARTY_LIBRARIES} delayimp LINK_OPTIONS ${LEIA_SR_LINK_OPTIONS})

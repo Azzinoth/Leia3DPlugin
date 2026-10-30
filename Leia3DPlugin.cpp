@@ -8,6 +8,8 @@
 #define SRDISPLAY_LAZYBINDING
 #include "sr/world/display/display.h"
 
+#include <delayimp.h>
+
 // DO NOT CHANGE THIS LINE.
 // The plugin manager uses it to create and destroy the plugin instance.
 REGISTER_PLUGIN(Leia3DPlugin)
@@ -25,6 +27,14 @@ static void ReportAndClearLeiaOpenGLErrors(const std::string& FunctionName)
 
 		LOG.Add(FunctionName + ": LeiaSR SDK left OpenGL error: " + std::to_string(Error), "LEIA_3D_PLUGIN", FE_LOG_WARNING);
 	}
+}
+
+// Failed delay load is a structured exception, C++ catch does not see it, so it would crash application.
+// It happens when LeiaSR Platform does not have DLL or function that plugin uses, for example when Platform is older than SDK.
+static bool IsDelayLoadException(const DWORD ExceptionCode)
+{
+	return ExceptionCode == VcppException(ERROR_SEVERITY_ERROR, ERROR_MOD_NOT_FOUND) ||
+		   ExceptionCode == VcppException(ERROR_SEVERITY_ERROR, ERROR_PROC_NOT_FOUND);
 }
 
 namespace
@@ -128,7 +138,7 @@ bool Leia3DPlugin::OnLoad()
 	bLeiaPlatformAvailable = true;
 
 	// 3D mode stays off until application enables it.
-	InitializeContext(false);
+	TryInitializeContext(false);
 	return true;
 }
 
@@ -148,20 +158,51 @@ bool Leia3DPlugin::InitializeContext(const bool bInitialLensState)
 	try
 	{
 		Context = SR::SRContext::create(bInitialLensState);
+		LensHint = SR::SwitchableLensHint::create(*Context);
+		CreateWeaver();
+		Context->initialize();
 	}
 	catch (const SR::ServerNotAvailableException&)
 	{
 		LOG.Add("Leia3DPlugin::InitializeContext: Could not connect to the LeiaSR service, it might not be running", "LEIA_3D_PLUGIN", FE_LOG_ERROR);
-		Context = nullptr;
+		Shutdown();
+		return false;
+	}
+	catch (const std::exception& Exception)
+	{
+		LOG.Add("Leia3DPlugin::InitializeContext: LeiaSR SDK reported error: " + std::string(Exception.what()), "LEIA_3D_PLUGIN", FE_LOG_ERROR);
+		Shutdown();
 		return false;
 	}
 
-	LensHint = SR::SwitchableLensHint::create(*Context);
-	CreateWeaver();
-	Context->initialize();
 	ReportAndClearLeiaOpenGLErrors("Leia3DPlugin::InitializeContext");
 
 	return true;
+}
+
+// __try can not be used in a function that has objects with destructors, so InitializeContext is wrapped.
+bool Leia3DPlugin::TryInitializeContext(const bool bInitialLensState)
+{
+	__try
+	{
+		return InitializeContext(bInitialLensState);
+	}
+	__except (IsDelayLoadException(GetExceptionCode()) ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+	{
+		OnDelayLoadFailed();
+		return false;
+	}
+}
+
+void Leia3DPlugin::OnDelayLoadFailed()
+{
+	LOG.Add("Leia3DPlugin::OnDelayLoadFailed: LeiaSR Platform does not have everything that plugin uses, it might be older than LeiaSR SDK that plugin was built with, plugin will stay inactive", "LEIA_3D_PLUGIN", FE_LOG_ERROR);
+
+	// SDK functions could be missing, so what was already created is not destroyed through them.
+	Weaver = nullptr;
+	LensHint = nullptr;
+	Context = nullptr;
+	bLeiaPlatformAvailable = false;
 }
 
 void Leia3DPlugin::CreateWeaver()
@@ -373,6 +414,41 @@ FEEntity* Leia3DPlugin::GetMonitorEntity() const
 		return nullptr;
 
 	return Scene->GetEntity(MonitorEntityID);
+}
+
+bool Leia3DPlugin::Is3DMonitorAvailable() const
+{
+	if (Context == nullptr || Weaver == nullptr)
+		return false;
+
+	SR::IDisplayManager* DisplayManager = SR::TryGetDisplayManagerInstance(*Context);
+	if (DisplayManager == nullptr)
+		return false;
+
+	SR::IDisplay* Display = DisplayManager->getPrimaryActiveSRDisplay();
+	if (Display == nullptr || !Display->isValid())
+		return false;
+
+	const SR_recti DisplayLocation = Display->getLocation();
+	return DisplayLocation.right > DisplayLocation.left && DisplayLocation.bottom > DisplayLocation.top;
+}
+
+FEEntity* Leia3DPlugin::GetLeftEyeEntity() const
+{
+	FEScene* Scene = GetBoundScene();
+	if (Scene == nullptr)
+		return nullptr;
+
+	return Scene->GetEntity(LeftEyeID);
+}
+
+FEEntity* Leia3DPlugin::GetRightEyeEntity() const
+{
+	FEScene* Scene = GetBoundScene();
+	if (Scene == nullptr)
+		return nullptr;
+
+	return Scene->GetEntity(RightEyeID);
 }
 
 void Leia3DPlugin::Render()

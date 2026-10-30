@@ -56,6 +56,8 @@ class Leia3DPlugin : public FEPluginCore, public Leia3DPluginInterface
 	void CopyFinalResultToMainWindow();
 
 	bool InitializeContext(bool bInitialLensState);
+	bool TryInitializeContext(bool bInitialLensState);
+	void OnDelayLoadFailed();
 	void CreateWeaver();
 	void Shutdown();
 public:
@@ -85,4 +87,9 @@ public:
 	void SetMonitorVisible(bool bNewValue) override;
 
 	FEEntity* GetMonitorEntity() const override;
+
+	bool Is3DMonitorAvailable() const override;
+
+	FEEntity* GetLeftEyeEntity() const override;
+	FEEntity* GetRightEyeEntity() const override;
 };
