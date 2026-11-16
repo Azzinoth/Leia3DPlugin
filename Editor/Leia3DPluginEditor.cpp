@@ -48,6 +48,9 @@ void Leia3DPluginEditor::DrawSettingsWindow()
 			LOG.Add("Leia3DPluginEditor::DrawSettingsWindow: Failed to switch Leia 3D monitor mode, LeiaSR service might not be running", "LEIA_3D_PLUGIN_EDITOR", FE_LOG_WARNING);
 	}
 
+	ImGui::Text("Lens: %s", EngineModule->IsLensEnabled() ? "on" : "off");
+	ImGui::Text("Viewer: %s", EngineModule->IsUserTracked() ? "tracked" : "not tracked");
+
 	// 3D image will be produced for the area of "Leia 3D monitor rendering" window.
 	FEScene* FocusedScene = Editor->GetFocusedScene();
 	FEViewport* Viewport = ENGINE.GetViewport(ViewportID);

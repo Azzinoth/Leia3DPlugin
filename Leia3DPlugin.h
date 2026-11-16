@@ -10,6 +10,8 @@ namespace SR
 	class IGLWeaver1;
 }
 
+class Leia3DSystemEventListener;
+
 class Leia3DPlugin : public FEPluginCore, public Leia3DPluginInterface
 {
 	bool bLeiaPlatformAvailable = false;
@@ -17,6 +19,7 @@ class Leia3DPlugin : public FEPluginCore, public Leia3DPluginInterface
 	SR::SRContext* Context = nullptr;
 	SR::SwitchableLensHint* LensHint = nullptr;
 	SR::IGLWeaver1* Weaver = nullptr;
+	Leia3DSystemEventListener* SystemEventListener = nullptr;
 	bool b3DModeEnabled = false;
 
 	FEUUID BoundSceneID;
@@ -92,4 +95,7 @@ public:
 
 	FEEntity* GetLeftEyeEntity() const override;
 	FEEntity* GetRightEyeEntity() const override;
+
+	bool IsUserTracked() const override;
+	bool IsLensEnabled() const override;
 };

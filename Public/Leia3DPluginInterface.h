@@ -21,7 +21,7 @@ public:
 	static constexpr const char* PluginID = "510257d6-2cd9-449a-9be7-cd2d6f5b4179";
 
 	// Increase when anything in this file changes.
-	static constexpr int InterfaceVersion = 3;
+	static constexpr int InterfaceVersion = 4;
 
 	// Order of virtual functions is part of the interface, new functions should be added only at the end.
 	virtual ~Leia3DPluginInterface() = default;
@@ -29,6 +29,7 @@ public:
 
 	// Switches lens of 3D monitor, returns false if plugin could not connect to the LeiaSR service.
 	virtual bool Set3DModeEnabled(bool bNewValue) = 0;
+	// Reports what was asked with Set3DModeEnabled, real state of the lens is IsLensEnabled.
 	virtual bool Is3DModeEnabled() const = 0;
 
 	// Creates monitor and eye camera entities in Scene, 3D image will be produced for Viewport area.
@@ -64,4 +65,8 @@ public:
 
 	virtual FocalEngine::FEEntity* GetLeftEyeEntity() const = 0;
 	virtual FocalEngine::FEEntity* GetRightEyeEntity() const = 0;
+
+	virtual bool IsUserTracked() const = 0;
+	// Real state of the lens, so it could differ from what was returned by Is3DModeEnabled().
+	virtual bool IsLensEnabled() const = 0;
 };

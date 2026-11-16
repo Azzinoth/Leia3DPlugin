@@ -1,18 +1,46 @@
 #include "Leia3DPlugin.h"
 
 #include "sr/management/srcontext.h"
+#include "sr/sense/core/inputstream.h"
 #include "sr/sense/display/switchablehint.h"
+#include "sr/sense/system/systemsense.h"
 #include "sr/utility/exception.h"
 #include "sr/weaver/glweaver.h"
 
 #define SRDISPLAY_LAZYBINDING
 #include "sr/world/display/display.h"
 
+#include <atomic>
 #include <delayimp.h>
 
 // DO NOT CHANGE THIS LINE.
 // The plugin manager uses it to create and destroy the plugin instance.
 REGISTER_PLUGIN(Leia3DPlugin)
+
+class Leia3DSystemEventListener : public SR::SystemEventListener
+{
+public:
+	SR::InputStream<SR::SystemEventStream> Stream;
+	// LeiaSR SDK calls accept outside of the main thread.
+	std::atomic<bool> bUserTracked{ false };
+
+	void accept(const SR::SystemEvent& Event) override
+	{
+		switch (Event.eventType)
+		{
+			case SR_eventType::UserFound:
+				bUserTracked = true;
+				break;
+			case SR_eventType::UserLost:
+			case SR_eventType::DeviceDisconnected:
+			case SR_eventType::ContextInvalid:
+				bUserTracked = false;
+				break;
+			default:
+				break;
+		}
+	}
+};
 
 // LeiaSR SDK can leave OpenGL errors in the error queue. Engine would then report them
 // in the next unrelated FE_GL_ERROR call, so they are logged and cleared right after SDK calls.
@@ -159,6 +187,11 @@ bool Leia3DPlugin::InitializeContext(const bool bInitialLensState)
 	{
 		Context = SR::SRContext::create(bInitialLensState);
 		LensHint = SR::SwitchableLensHint::create(*Context);
+
+		SR::SystemSense* SystemSense = SR::SystemSense::create(*Context);
+		SystemEventListener = new Leia3DSystemEventListener();
+		SystemEventListener->Stream.set(SystemSense->openSystemEventStream(SystemEventListener));
+
 		CreateWeaver();
 		Context->initialize();
 	}
@@ -200,6 +233,7 @@ void Leia3DPlugin::OnDelayLoadFailed()
 
 	// SDK functions could be missing, so what was already created is not destroyed through them.
 	Weaver = nullptr;
+	SystemEventListener = nullptr;
 	LensHint = nullptr;
 	Context = nullptr;
 	bLeiaPlatformAvailable = false;
@@ -258,6 +292,13 @@ void Leia3DPlugin::Shutdown()
 	{
 		delete FinalResultFramebuffer;
 		FinalResultFramebuffer = nullptr;
+	}
+
+	// Event stream belongs to Context, so listener should stop listening before Context is deleted.
+	if (SystemEventListener != nullptr)
+	{
+		delete SystemEventListener;
+		SystemEventListener = nullptr;
 	}
 
 	// LensHint is owned by Context, so it is deleted together with it.
@@ -449,6 +490,22 @@ FEEntity* Leia3DPlugin::GetRightEyeEntity() const
 		return nullptr;
 
 	return Scene->GetEntity(RightEyeID);
+}
+
+bool Leia3DPlugin::IsUserTracked() const
+{
+	if (SystemEventListener == nullptr)
+		return false;
+
+	return SystemEventListener->bUserTracked;
+}
+
+bool Leia3DPlugin::IsLensEnabled() const
+{
+	if (LensHint == nullptr)
+		return false;
+
+	return LensHint->isEnabled();
 }
 
 void Leia3DPlugin::Render()
